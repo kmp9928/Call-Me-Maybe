@@ -1,0 +1,15 @@
+[project]
+name = "call-me-maybe"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.13.4",
+    "numpy>=1.26.4",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "flake8>=7.3.0",
+]

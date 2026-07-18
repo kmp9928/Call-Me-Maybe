@@ -1,6 +1,6 @@
 from typing import List
 import json
-from .input_files_parser import Prompt, Function
+from .arguments_parser import Prompt, Function
 from .state import TokenParser
 from .prompt_state import PromptState
 from .llm import LLM
@@ -19,7 +19,7 @@ class GenerationPipeline:
         self.response_found = False
 
     def generate_prompt_response(self, prompt: Prompt) -> None:
-        base_prompt: str = GenerationPipeline.format_first_prompt(
+        base_prompt: str = GenerationPipeline.format_function_prompt(
             prompt.prompt, self.prompt_state.functions
         )
         while True:
@@ -35,15 +35,15 @@ class GenerationPipeline:
             if self.response_found:
                 break
 
-        self.prompt_state.generated_tokens = ""
+        self.prompt_state.generated_tokens = '"'
         self.response_found = False
 
-        base_prompt = GenerationPipeline.format_second_prompt(
+        base_prompt = GenerationPipeline.format_param_prompt(
             prompt.prompt, self.token_parser.current_function
         )
 
         while True:
-            # print(f"PROMT IS {base_prompt + self.prompt_state.generated_tokens}")
+            print(f"=====================\n{base_prompt + self.prompt_state.generated_tokens}\n=====================")
             input_ids = self.llm.encode(  # Tokenize prompt and get token ids
                 base_prompt + self.prompt_state.generated_tokens
             )
@@ -74,10 +74,10 @@ class GenerationPipeline:
         return
 
     @staticmethod
-    def format_first_prompt(prompt: str, functions: List[Function]) -> str:
+    def format_function_prompt(prompt: str, functions: List[Function]) -> str:
         return (
-            "For the given prompt, reply in strict JSON with the format " +
-            '"function_name"\n\n' +
+            "For the given prompt, reply in JSON string with the function " +
+            'name\n\n' +
             "Examples:\n" +
             'What is the sum of 100 and 50? → "fn_add_numbers"\n' +
             'Greet gandalf → "fn_greet"\n' +
@@ -91,31 +91,28 @@ class GenerationPipeline:
         )
 
     @staticmethod
-    def format_second_prompt(prompt: str, function: Function) -> str:
-        f_parameters = (",").join(
-            f'"{p.name}",{p.type.type}_value'
+    def format_param_prompt(prompt: str, function: Function) -> str:
+        params_str = ("\n").join([
+            f"{json.dumps(p.name)}=<{p.type.type}>"
             for p in function.parameters
-        )
-        print(f"f_parameters is {f_parameters}")
+        ])
 
+        params = [
+            (p.name, p.type.type)
+            for p in function.parameters
+        ]
+        print(f"params is {params}")
+
+        param = params[0]
         return (
-            "For the given prompt, reply in strict JSON with the format " +
-            f"[{f_parameters}]\n\n" +
-            f'Function "{function.name}": {function.description}\n' +
-            "Examples:\n" +
-            "What is the sum of 100 and 50? → a=100.0 b=50.0 → " +
-            '["a",100.0,"b",50.0]\n' +
-            'Greet alice → name=alice → ["name","alice"]\n' +
-            'Replace all vowels in "hello" with asterisks → ' +
-            'source_string=hello regex=[aAeEiIoOuU] replacement=* → ' +
-            '["source_string","hello","regex","[aAeEiIoOuU]",' +
-            '"replacement","*"]\n' +
-            "Note: Extract the actual values from the prompt - do not use " +
-            "the example values.\n" +
-            "Note 2: Integers must be written as floats e.g. 44 → 44.0\n" +
-            "Note 3: Separate each value with a comma immediately after, " +
-            "except the last one" +
-            f"\n\nPrompt: {prompt}\nOutput: "
+            "System: Output matching this schema:\n"
+            f'"function_name"={json.dumps(function.name)}\n' +
+            f"{params_str}\n" +
+            "\n" +
+            f"User: {prompt}\n"
+            f"Output:\n" +
+            f'"function_name"={json.dumps(function.name)}\n' +
+            f"{json.dumps(param[0])}="
         )
 
     @staticmethod

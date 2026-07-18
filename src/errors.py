@@ -19,3 +19,7 @@ class ModelValidationError(InputFileError):
         super().__init__(
             f"Wrong input: {error}."
         )
+
+
+class JSONExtractorError(Exception):
+    pass

@@ -1,8 +1,8 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from enum import Enum
 import re
 import json
-from .input_files_parser import Function
+from .arguments_parser import Function
 from .prompt_state import PromptState
 from .llm import LLM
 import math
@@ -26,9 +26,10 @@ class TokenParser:
     current_state: State
     current_function: Optional[Function]
     current_parameters: List[str]
-    parameters_regex: str
+    parameters_regex: List[re.Pattern]
     parameters_index: int
     generated_tokens_index: int
+    parameters_values: Dict[str, Any]
 
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
@@ -42,9 +43,10 @@ class TokenParser:
         self.current_state = State.EXPECT_NAME.value
         self.current_function = None
         self.current_parameters = []
-        self.parameters_regex = ""
+        self.parameters_regex = []
         self.parameters_index = 0
         self.generated_tokens_index = 0
+        self.parameters_values = {}
 
     def parse_token(
         self,
@@ -155,12 +157,16 @@ class TokenParser:
         self.current_function = next(
             (f for f in functions if f.name == json.loads(generated_tokens)), None
         )
+        # self.current_parameters = [
+        #     value
+        #     for p in self.current_function.parameters
+        #     for value in (p.name, p.type.type)
+        # ]
         self.current_parameters = [
-            value
+            p.type.type
             for p in self.current_function.parameters
-            for value in (p.name, p.type.type)
         ]
-        print(f"current_parameters is {self.current_parameters}")
+        print(f"current_parameters type are {self.current_parameters}")
         self.parameters_regex = TokenParser.generate_parameters_regex(
             self.current_parameters
         )
@@ -172,7 +178,6 @@ class TokenParser:
         generated_tokens: str,
         functions: List[Function]
     ) -> None:
-        pass
         sorted_logits_ids: List[int] = [
             index
             for index, _ in sorted(
@@ -192,7 +197,15 @@ class TokenParser:
             generated_tokens[self.generated_tokens_index:]
         ):
             self.generated_tokens_index = len(generated_tokens)
+            assert self.current_function
+            self.parameters_values[self.current_function.parameters[self.parameters_index].name] = json.loads(generated_tokens)
             self.parameters_index += 1
+            return
+
+        if self.parameters_index == len(self.current_parameters):
+            print("DONE?")
+            self.current_state = State.DONE.value
+            return
 
         print(f"generated_tokens_index is {self.generated_tokens_index}")
         print(f"parameters_index is {self.parameters_index}")
@@ -222,41 +235,25 @@ class TokenParser:
 
     def check_parameter_token(self, current: str, next: str) -> bool:
         # parameters ["a", "number", "b", "number"]
-        last_value: bool = self.parameters_index == len(self.current_parameters) - 1
-        if self.parameters_index % 2 != 0:
-            if self.current_parameters[self.parameters_index] == "number":
-                return TokenParser.is_valid_next_number_char(current, next, last_value)
-                # return (False if re.match(r'-?\\d+\\.?\\d*', generated_parameters_tokens) is None else True)
-            else:
-                return TokenParser.is_valid_next_string_char(current, next, last_value)
-                # return (False if re.match(r'"([^"\\]|\\.)+"', current + next) is None else True)
+        if self.current_parameters[self.parameters_index] == "number":
+            return TokenParser.is_valid_next_number_char(current, next)
+            # return (False if re.match(r'-?\\d+\\.?\\d*', generated_parameters_tokens) is None else True)
         else:
-            return TokenParser.is_valid(
-                current + next,
-                # generated_parameters_tokens,
-                [json.dumps(self.current_parameters[self.parameters_index]) + ',']  # ADD ESCAPE????
-            )
+            return TokenParser.is_valid_next_string_char(current, next)
+            # return (False if re.match(r'"([^"\\]|\\.)+"', current + next) is None else True)
 
     @staticmethod
-    def is_valid_next_number_char(current: str, next: str, is_last: bool) -> bool:
-        if len(current) == 0:
-            return True if re.match(r'-$|-?\d+\.?\d*$', next) is not None else False
-        # elif len(current) == 1:
-        #     return True if re.match(r'^-?\d+\.?\d*,?$', current + next) is not None else False
-        else:
-            if "." in current:
-                pattern = r'-?\d+\.\d+$' if is_last else r'-?\d+\.\d+,?$'
-                return True if re.match(pattern, current + next) is not None else False
-            return True if re.match(r'-?\d+\.?\d*$', current + next) is not None else False
-            # return False
-
-    @staticmethod
-    def is_valid_next_string_char(current: str, next: str, is_last: bool) -> bool:
-        if len(current) == 0:
-            return True if re.match(r'"$|"([^"\\]|\\.)+$', next) is not None else False
-        else:
-            pattern = r'"([^"\\]|\\.)+"$' if is_last else r'"([^"\\]|\\.)+",?$'
+    def is_valid_next_number_char(current: str, next: str) -> bool:
+        if "." in current:
+            pattern = r'^-?\d+\.\d+$'
             return True if re.match(pattern, current + next) is not None else False
+        else:
+            return True if re.match(r'^-?\d+\.?\d*$', current + next) is not None else False
+
+    @staticmethod
+    def is_valid_next_string_char(current: str, next: str) -> bool:
+        pattern = r'^"([^"\\]|\\.)*"?$'
+        return True if re.match(pattern, current + next) is not None else False
 
     @staticmethod
     def sample(logits: list[float]) -> int:
@@ -318,56 +315,57 @@ class TokenParser:
         return False
 
     @staticmethod
-    def generate_parameters_regex(parameters: List[str]) -> str:  # "-?\\d+\\.\\d+"
-        number_regex = r"-?\d+\.\d+"
-        string_regex = r'"([^"\\]|\\.)+"'
-        regex_list: List[str] = []
+    def generate_parameters_regex(parameters: List[str]) -> List[re.Pattern]:  # "-?\\d+\\.\\d+"
+        number_regex = re.compile(r"^-?\d+\.\d+$")
+        string_regex = re.compile(r'^"([^"\\]|\\.)+"$')
+        regex_list: List[re.Pattern] = []
         # parameters ["a", "number", "b", "number"]
-        for index, value in enumerate(parameters):
-            if index % 2 != 0:
-            # if value not in ["number", "string"]:
-                regex_list.append(
-                    f"{number_regex if value == "number" else string_regex}"
-                )
-            else:
-                regex_list.append(f"{re.escape(json.dumps(value))}")
+        for _, value in enumerate(parameters):
+            regex_list.append(
+                number_regex if value == "number" else string_regex
+            )
 
-        return (",").join(regex_list)
+        return regex_list
+        # return (",").join(regex_list)
 
     def found_parameter(self, generated_parameters_tokens: str) -> bool:
-        parameter: str = self.current_parameters[self.parameters_index]
+        # parameter: str = self.current_parameters[self.parameters_index]
 
-        if self.parameters_index % 2 != 0:
-            pattern = TokenParser.generate_parameters_regex(
-                ["", parameter]
-            )[3:]
-        else:
-            pattern = TokenParser.generate_parameters_regex([parameter])
+        # if self.parameters_index % 2 != 0:
+        #     pattern = TokenParser.generate_parameters_regex(
+        #         ["", parameter]
+        #     )[3:]
+        # else:
+        #     pattern = TokenParser.generate_parameters_regex([parameter])
 
-        if self.parameters_index != len(self.current_parameters) - 1:
-            pattern += r',$'
-        else:
-            pattern += r'$'
-
+        # if self.parameters_index != len(self.current_parameters) - 1:
+        #     pattern += r',$'
+        # else:
+        #     pattern += r'$'
+        pattern = self.parameters_regex[self.parameters_index]
         # print(f"pattern for {self.current_parameters[self.parameters_index]} is {pattern}")
 
-        return (
+        result = (
             False
             if re.match(pattern, generated_parameters_tokens) is None
             else True
-        )
+        ) 
+        print(f"{pattern}.match({generated_parameters_tokens}):{result}")
+        return result
 
-    def update_current_state(self, generated_tokens: str, functions: List[Function]) -> None:
+    def update_current_state(self, generated_tokens: str, functions: List[Function]) -> bool:
         basic_pattern: str = r'"([^"\\]|\\.)+"'
-        if (
-            self.current_state == State.EXPECT_PARAMETERS.value and
-            re.match(
-                r'(?:' + self.parameters_regex + r')$',
-                generated_tokens
-            ) is not None
-        ):
-            self.current_state = State.DONE.value
+        if self.current_state == State.DONE.value:
             return True
+        # if (
+        #     self.current_state == State.EXPECT_PARAMETERS.value and
+        #     re.match(
+        #         r'(?:' + self.parameters_regex + r')$',
+        #         generated_tokens
+        #     ) is not None
+        # ):
+        #     self.current_state = State.DONE.value
+        #     return True
         # if (
         #     re.match(
         #         basic_pattern + r',(?:' + self.parameters_regex + r')\]$',
@@ -388,7 +386,7 @@ class TokenParser:
         # ) is not None:
         #     # print(f"self.parameters_regex in rematch 2 is {self.parameters_regex}")
         #     self.current_state = State.EXPECT_PARAMETERS.value
-        elif (
+        if (
             self.current_state == State.EXPECT_NAME.value and
             re.match(basic_pattern, generated_tokens) is not None
         ): # if f_name is not None then move to expect comma & save f_name & generate full regex

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, model_validator, ValidationError
 from pydantic_core import PydanticCustomError
-from typing import List, Self
+from typing import List, Dict, Any, Self
+from dataclasses import dataclass
 
 
 class Prompt(BaseModel):
@@ -23,6 +24,13 @@ class Prompt(BaseModel):
                 }]
             )
         return self
+
+
+@dataclass
+class PromptResponse:
+    prompt: str
+    name: str
+    parameters: Dict[str, Any]
 
 
 class Type(BaseModel):

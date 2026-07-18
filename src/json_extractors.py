@@ -6,10 +6,17 @@ from .llm import LLM
 from .debug import debug
 
 MIN_INF = float('-inf')
-PARTIAL_STR_REGEX = re.compile(r'^"(([^"\\\n\t\r]|\\[^\n\t\r ])+"?)?\Z')
-STR_REGEX = re.compile(r'^"([^"\\\n\t\r]|\\[^\n\t\r ])+"\Z')
-PARTIAL_NUMBER_REGEX = re.compile(r'^-?\d+\.?\d*\Z')
+PARTIAL_STR_REGEX = re.compile(
+    r'^"(([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{0,4})+"?)?\Z'
+)
+STR_REGEX = re.compile(r'^"([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})+"\Z')
+PARTIAL_NUMBER_REGEX = re.compile(r'^-?\d+\.?\d{0,6}\Z')
 NUMBER_REGEX = re.compile(r'^-?\d+\.\d{6}\Z')
+PARTIAL_REGEX = re.compile(
+    r'^"((\\\\[b]([^"\\]|\\.)*|\[[^\]"]*(\][+*]?)?)"?)?\Z'
+
+)
+REGEX = re.compile(r'^"(\\\\[b]([^"\\]|\\.)+|\[[^\]"]+\][+*]?)"\Z')
 
 
 class PromptRulesProvider(Protocol):
@@ -93,31 +100,32 @@ class StringJSONExtractor(JSONExtractor):
         return True if match is not None else False
 
 
-class RegexJSONExtractor(StringJSONExtractor):
+class RegexJSONExtractor(JSONExtractor):
     def get_rules(self) -> str:
         return (
-            "For the regex field, NEVER output literal matches. "
+            "Don't extract the regex values from the prompt. " +
             "Always use proper regex sets " +
-            r'(e.g. "[aeiouAEIOU]", "[0-9]+", "\\bword\\b").'
+            r'(e.g. "\\bword\\b", "[aeiouAEIOU]", "[0-9]+").' +
+            "\n" +
+            "Example: " +
+            'Substitute the word "pencil" with "pen" in "I love my pencil" ' +
+            "source_string='The cat sat on the mat with another cat' " +
+            r'regex="\\bpencil\\b" ' +
+            'replacement="pen"'
         )
 
     def is_valid_token(self, output: str, token: str) -> bool:
-        return (
-            super().is_valid_token(output, token) and
-            self.is_valid_regex_token(output, token)
-        )
+        match = re.match(PARTIAL_REGEX, output + token)
+        return True if match is not None else False
 
-    def is_valid_regex_token(self, output: str, token: str) -> bool:
-        return True
-
-    # def is_valid_output(self, output: str) -> bool:
-    #     pass
-
+    def is_valid_output(self, output: str) -> bool:
+        match = re.match(REGEX, output)
+        return True if match is not None else False
 
 
 class NumberJSONExtractor(JSONExtractor):
     def get_rules(self) -> str:
-        return "Extract the actual number values from the prompt as floats"
+        return "Extract the actual number values from the prompt as floats."
 
     def is_valid_token(self, output: str, token: str) -> bool:
         match = re.match(PARTIAL_NUMBER_REGEX, output + token)

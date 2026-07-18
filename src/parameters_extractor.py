@@ -26,7 +26,7 @@ class ParametersExtractor:
             debug("in parameter", parameter)
             extractor = self.choose_extractor(parameter)
             base_prompt = ParametersExtractor.make_parameters_prompt(
-                prompt, function, parameter, parameter_values, extractor
+                prompt.prompt, function, parameter, parameter_values, extractor
             )
             parameter_values[parameter.name] = extractor.extract(base_prompt)
 

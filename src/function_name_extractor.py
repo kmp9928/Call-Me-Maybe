@@ -15,7 +15,7 @@ class FunctionNameExtractor:
         self, prompt: Prompt, functions: List[Function]
     ) -> str:
         base_prompt = FunctionNameExtractor.make_function_prompt(
-            prompt, functions
+            prompt.prompt, functions
         )
         allowed_functions = FunctionNameExtractor.get_json_function_names(
             functions

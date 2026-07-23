@@ -22,7 +22,7 @@ class FunctionNameExtractor:
         )
 
         return LiteralJSONExtractor(self.llm, allowed_functions).extract(
-            base_prompt
+            base_prompt, prompt.prompt
         )
 
     @staticmethod

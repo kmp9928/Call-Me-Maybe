@@ -1,8 +1,11 @@
+import copy
 import json
+from dataclasses import dataclass
 from typing import Dict, Any
 from .errors import JSONExtractorTypeError, JSONExtractorParsingError
 from .json_extractors import (
     JSONExtractor,
+    PathJSONExtractor,
     PromptRulesProvider,
     NumberJSONExtractor,
     IntegerJSONExtractor,
@@ -32,7 +35,9 @@ class ParametersExtractor:
                 prompt.prompt, function, param, parameter_values, extractor
             )
             try:
-                parameter_values[param.name] = extractor.extract(base_prompt)
+                parameter_values[param.name] = extractor.extract(
+                    base_prompt, prompt.prompt
+                )
                 # debug("is", parameter_values[param.name])
             except json.JSONDecodeError:
                 raise JSONExtractorParsingError(param.name)
@@ -49,6 +54,8 @@ class ParametersExtractor:
                 return RegexJSONExtractor(self.llm)
             elif parameter.name == "replacement":
                 return ReplacementJSONExtractor(self.llm)
+            elif parameter.name == "path":
+                return PathJSONExtractor(self.llm)
             return StringJSONExtractor(self.llm)
         elif parameter.type == "boolean":
             return BooleanJSONExtractor(self.llm)
@@ -69,7 +76,7 @@ class ParametersExtractor:
         return (
             "System: Output matching this schema:\n" +
             ParametersExtractor.make_schema(function) +
-            "\n" +
+            "\n\n" +
             rules +
             f"User Prompt: {prompt}\n"
             f"Output:\n" +
@@ -80,15 +87,23 @@ class ParametersExtractor:
 
     @staticmethod
     def make_schema(function: Function) -> str:
-        parameters_str = ("\n").join([
-            f"{json.dumps(p.name)}=<{p.type}>"
-            for p in function.parameters
-        ])
+        schema = {"function_name": function.name, "parameters": {}}
+        for p in function.parameters:
+            schema["parameters"][p.name] = (
+                ParametersExtractor.format_parameter_placeholder(p)
+            )
 
-        return (
-            f'"function_name"={json.dumps(function.name)}\n' +
-            f"{parameters_str}\n"
-        )
+        return f"{json.dumps(schema)}"
+
+        # parameters_str = ("\n").join([
+        #     f"{json.dumps(p.name)}=<{p.type}>"
+        #     for p in function.parameters
+        # ])
+
+        # return (
+        #     f'"function_name"={json.dumps(function.name)}\n' +
+        #     f"{parameters_str}\n"
+        # )
 
     @staticmethod
     def make_output(
@@ -96,8 +111,22 @@ class ParametersExtractor:
         current_parameter: Parameter,
         parameter_values: Dict[str, Any]
     ) -> str:
-        output = f'"function_name"={json.dumps(function.name)}\n'
-        for k, v in parameter_values.items():
-            output += f"{json.dumps(k)}={json.dumps(v)}\n"
+        values = copy.deepcopy(parameter_values)
+        values[current_parameter.name] = None
 
-        return output + f"{json.dumps(current_parameter.name)}="
+        return json.dumps({
+            "function_name": function.name,
+            "parameters": values
+        }).removesuffix("null}}")
+
+        # # output = f'"function_name"={json.dumps(function.name)}\n'
+        # for k, v in parameter_values.items():
+        #     output += f"{json.dumps(k)}={json.dumps(v)}\n"
+
+        # return output + f"{json.dumps(current_parameter.name)}="
+
+    @staticmethod
+    def format_parameter_placeholder(parameter: Parameter) -> str:
+        # if parameter.type == "string":
+            # return "<string>|'<char>'"
+        return f"<{parameter.type}>"

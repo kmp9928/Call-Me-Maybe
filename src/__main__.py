@@ -8,6 +8,7 @@ from .models import PromptResponse
 from .output_writer import OutputWriter
 from .parameters_extractor import ParametersExtractor
 from .prompt_pipeline import PromptPipeline
+from .debug import debug
 
 
 if __name__ == "__main__":
@@ -26,6 +27,8 @@ if __name__ == "__main__":
         responses: List[PromptResponse] = []
         for prompt in prompts:
             response = pipeline.process_prompt(prompt)
+            debug("output", response)
+            # break
             responses.append(response)
 
         OutputWriter().write_output(args.get_output_file(), responses)

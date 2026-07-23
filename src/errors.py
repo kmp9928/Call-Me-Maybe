@@ -37,3 +37,10 @@ class JSONExtractorParsingError(JSONExtractorError):
         super().__init__(
             f"Not possible to parse JSON outout for parameter: {param_name}."
         )
+
+
+class JSONExtractorTimeoutError(JSONExtractorError):
+    def __init__(self, output: str):
+        super().__init__(
+            f"Timeout error during extraction: {output}."
+        )

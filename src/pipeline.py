@@ -1,6 +1,6 @@
 from typing import List
 import json
-from .arguments_parser import Prompt, Function
+from .input_reader import Prompt, Function
 from .state import TokenParser
 from .prompt_state import PromptState
 from .llm import LLM
@@ -93,12 +93,12 @@ class GenerationPipeline:
     @staticmethod
     def format_param_prompt(prompt: str, function: Function) -> str:
         params_str = ("\n").join([
-            f"{json.dumps(p.name)}=<{p.type.type}>"
+            f"{json.dumps(p.name)}=<{p.type}>"
             for p in function.parameters
         ])
 
         params = [
-            (p.name, p.type.type)
+            (p.name, p.type)
             for p in function.parameters
         ]
         print(f"params is {params}")

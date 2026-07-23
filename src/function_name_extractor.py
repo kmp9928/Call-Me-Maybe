@@ -29,7 +29,7 @@ class FunctionNameExtractor:
     def make_function_prompt(prompt: str, functions: List[Function]) -> str:
         return (
             "For the given prompt, reply in JSON string with the function " +
-            'name\n\n' +
+            "name.\n\n" +
             "Examples:\n" +
             'What is the sum of 100 and 50? → "fn_add_numbers"\n' +
             'Greet gandalf → "fn_greet"\n' +

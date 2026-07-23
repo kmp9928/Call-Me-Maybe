@@ -1,5 +1,5 @@
 from typing import List
-from .arguments_parser import Function
+from .input_reader import Function
 
 
 class PromptState:

@@ -1,7 +1,6 @@
+from typing import List, Dict, Any, Self
 from pydantic import BaseModel, model_validator, ValidationError
 from pydantic_core import PydanticCustomError
-from typing import List, Dict, Any, Self
-from dataclasses import dataclass
 
 
 class Prompt(BaseModel):
@@ -26,47 +25,22 @@ class Prompt(BaseModel):
         return self
 
 
-@dataclass
-class PromptResponse:
-    prompt: str
-    name: str
-    parameters: Dict[str, Any]
-
-
-class Type(BaseModel):
+class Returns(BaseModel):
     type: str
 
     @model_validator(mode='after')
-    def check_empty_type(self) -> Self:
-        if self.type == "":
-            raise ValidationError.from_exception_data(
-                title="Type",
-                line_errors=[{
-                    "type": PydanticCustomError(
-                        "check_empty_type",
-                        "Type is empty"
-                    ),
-                    "loc": ("type",),
-                    "input": {
-                        "type": self.type
-                    }
-                }]
-            )
-        return self
-
-    @model_validator(mode='after')
     def check_wrong_type(self) -> Self:
-        if self.type not in ["number", "string"]:
+        if self.type not in ["number", "integer", "string", "boolean"]:
             raise ValidationError.from_exception_data(
-                title="Type",
+                title="Returns",
                 line_errors=[{
                     "type": PydanticCustomError(
                         "check_wrong_type",
-                        "Wrong type"
+                        "Wrong returns type"
                     ),
                     "loc": ("type",),
                     "input": {
-                        "type": self.type
+                        "returns": self.type
                     }
                 }]
             )
@@ -75,7 +49,7 @@ class Type(BaseModel):
 
 class Parameter(BaseModel):
     name: str
-    type: Type
+    type: str
 
     @model_validator(mode='after')
     def check_empty_param_name(self) -> Self:
@@ -95,12 +69,30 @@ class Parameter(BaseModel):
             )
         return self
 
+    @model_validator(mode='after')
+    def check_wrong_type(self) -> Self:
+        if self.type not in ["number", "integer", "string", "boolean"]:
+            raise ValidationError.from_exception_data(
+                title="Type",
+                line_errors=[{
+                    "type": PydanticCustomError(
+                        "check_wrong_type",
+                        "Wrong type"
+                    ),
+                    "loc": ("type",),
+                    "input": {
+                        "type": self.type
+                    }
+                }]
+            )
+        return self
+
 
 class Function(BaseModel):
     name: str
     description: str
     parameters: List[Parameter]
-    returns: Type
+    returns: Returns
 
     @model_validator(mode='after')
     def check_empty_func_name(self) -> Self:
@@ -133,6 +125,32 @@ class Function(BaseModel):
                     "loc": ("description",),
                     "input": {
                         "description": self.description
+                    }
+                }]
+            )
+        return self
+
+
+class PromptResponse(BaseModel):
+    prompt: str
+    function: Function
+    parameters: Dict[str, Any]
+
+    @model_validator(mode='after')
+    def check_parameters(self) -> Self:
+        original_parameters = [p.name for p in self.function.parameters]
+        output_parameters = [p for p in self.parameters.keys()]
+        if original_parameters != output_parameters:
+            raise ValidationError.from_exception_data(
+                title="Parameters",
+                line_errors=[{
+                    "type": PydanticCustomError(
+                        "check_parameters",
+                        "Output parameters don't match original ones"
+                    ),
+                    "loc": ("name",),
+                    "input": {
+                        "parameters": output_parameters
                     }
                 }]
             )

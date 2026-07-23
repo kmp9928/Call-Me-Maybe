@@ -5,18 +5,37 @@ from typing import List, Any, Protocol
 from .llm import LLM
 from .debug import debug
 
+
 MIN_INF = float('-inf')
 PARTIAL_STR_REGEX = re.compile(
     r'^"(([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{0,4})+"?)?\Z'
 )
 STR_REGEX = re.compile(r'^"([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})+"\Z')
-PARTIAL_NUMBER_REGEX = re.compile(r'^-?\d+\.?\d{0,6}\Z')
-NUMBER_REGEX = re.compile(r'^-?\d+\.\d{6}\Z')
-PARTIAL_REGEX = re.compile(
-    r'^"((\\\\[b]([^"\\]|\\.)*|\[[^\]"]*(\][+*]?)?)"?)?\Z'
 
+PARTIAL_INTEGER_REGEX = re.compile(r'^-?[0-9]+\Z')
+INTEGER_REGEX = re.compile(r'^-?[0-9]+\Z')
+
+# PARTIAL_NUMBER_REGEX = re.compile(r'^-?\d+\.?\d{0,6}\Z')
+# NUMBER_REGEX = re.compile(r'^-?\d+\.\d{6}\Z')
+PARTIAL_NUMBER_REGEX = re.compile(r'^"-?\d+\.?\d{0,6}"?\Z')
+NUMBER_REGEX = re.compile(r'^"-?\d+\.?\d{0,6}"\Z')
+
+PARTIAL_REGEX = re.compile(
+    r'^"('
+    r'\[(B(\])?)?[^\]]*(\[B\]?)?|'
+    r'\[(0(-(9)?)?)?\]?(\+)?|'
+    r'\[[aeiouAEIOU]+\]?'
+    r')?"?\Z'
 )
-REGEX = re.compile(r'^"(\\\\[b]([^"\\]|\\.)+|\[[^\]"]+\][+*]?)"\Z')
+REGEX = re.compile(
+    r'^"(\[B\][^\]]+\[B\]|\[0-9\]\+|\[[aeiouAEIOU]+\])"\Z'
+)
+PARTIAL_REPLACEMENT_REGEX = re.compile(
+    r'^"([a-zA-Z0-9_-]+|\\["\\]|[^"\\a-zA-Z0-9_\s-])"?\Z'
+)
+REPLACEMENT_REGEX = re.compile(
+    r'^"([a-zA-Z0-9_-]+|\\["\\]|[^"\\a-zA-Z0-9_\s-])"\Z'
+)
 
 
 class PromptRulesProvider(Protocol):
@@ -34,7 +53,7 @@ class JSONExtractor(ABC):
         output = self.get_output_prefix()
 
         while not self.is_valid_output(output):
-            debug("base_prompt with output", base_prompt + output)
+            # debug("base_prompt + output", base_prompt + output)
             input_ids = self.llm.encode(base_prompt + output)
             logits = self.llm.get_logits(input_ids)
             for id in range(len(logits)):
@@ -44,9 +63,9 @@ class JSONExtractor(ABC):
 
             best_id = max(logits)
             output += self.llm.decode(logits.index(best_id))
+            # debug("output so far", output)
 
-        debug("output in extract", output)
-        return json.loads(output)
+        return json.loads(self.finalize_output(output))
 
     def get_output_prefix(self) -> str:
         return ""
@@ -61,6 +80,9 @@ class JSONExtractor(ABC):
     @abstractmethod
     def is_valid_output(self, output: str) -> bool:
         pass
+
+    def finalize_output(self, output: str) -> str:
+        return output
 
 
 class LiteralJSONExtractor(JSONExtractor):
@@ -91,6 +113,9 @@ class StringJSONExtractor(JSONExtractor):
     def get_output_prefix(self) -> str:
         return '"'
 
+    def get_rules(self) -> str:
+        return "Extract the literal string argument from User Prompt."
+
     def is_valid_token(self, output: str, token: str) -> bool:
         match = re.match(PARTIAL_STR_REGEX, output + token)
         return True if match is not None else False
@@ -100,18 +125,31 @@ class StringJSONExtractor(JSONExtractor):
         return True if match is not None else False
 
 
+class ReplacementJSONExtractor(JSONExtractor):
+    def get_output_prefix(self) -> str:
+        return '"'
+
+    def is_valid_token(self, output: str, token: str) -> bool:
+        match = re.match(PARTIAL_REPLACEMENT_REGEX, output + token)
+        return True if match is not None else False
+
+    def is_valid_output(self, output: str) -> bool:
+        match = re.match(REPLACEMENT_REGEX, output)
+        return True if match is not None else False
+
+    def finalize_output(self, output: str) -> str:
+        if len(output) > 1 and len(set(output)) == 1:
+            return output[0]
+
+        return output
+
+
 class RegexJSONExtractor(JSONExtractor):
     def get_rules(self) -> str:
         return (
-            "Don't extract the regex values from the prompt. " +
-            "Always use proper regex sets " +
-            r'(e.g. "\\bword\\b", "[aeiouAEIOU]", "[0-9]+").' +
-            "\n" +
-            "Example: " +
-            'Substitute the word "pencil" with "pen" in "I love my pencil" ' +
-            "source_string='The cat sat on the mat with another cat' " +
-            r'regex="\\bpencil\\b" ' +
-            'replacement="pen"'
+            "Generate quoted regex string based on the input. " +
+            'Words → "[B]word[B]" | Vowels → "[aeiouAEIOU]" | ' +
+            'Digits → "[0-9]+".'
         )
 
     def is_valid_token(self, output: str, token: str) -> bool:
@@ -122,10 +160,26 @@ class RegexJSONExtractor(JSONExtractor):
         match = re.match(REGEX, output)
         return True if match is not None else False
 
+    def finalize_output(self, output: str) -> str:
+        if output == '"[0-9]+"':
+            return json.dumps(r'\d+')
+        elif output.startswith('"[B]'):
+            word = output.strip('"').replace("[B]", "")
+            return json.dumps(rf'\b{re.escape(word)}\b')
+        return output
 
-class NumberJSONExtractor(JSONExtractor):
-    def get_rules(self) -> str:
-        return "Extract the actual number values from the prompt as floats."
+
+class IntegerJSONExtractor(StringJSONExtractor):
+    # def get_rules(self) -> str:
+    #     return "Extract the EXACT numbers from the input."
+
+    # def is_valid_token(self, output: str, token: str) -> bool:
+    #     match = re.match(PARTIAL_INTEGER_REGEX, output + token)
+    #     return True if match is not None else False
+
+    # def is_valid_output(self, output: str) -> bool:
+    #     match = re.match(INTEGER_REGEX, output)
+    #     return True if match is not None else False
 
     def is_valid_token(self, output: str, token: str) -> bool:
         match = re.match(PARTIAL_NUMBER_REGEX, output + token)
@@ -134,3 +188,24 @@ class NumberJSONExtractor(JSONExtractor):
     def is_valid_output(self, output: str) -> bool:
         match = re.match(NUMBER_REGEX, output)
         return True if match is not None else False
+
+    def finalize_output(self, output: str) -> str:
+        return str(int(float(output.strip('"'))))
+
+
+class NumberJSONExtractor(IntegerJSONExtractor):
+    # def get_rules(self) -> str:
+    #     return (
+    #         "Copy the numbers exactly as they appear in the prompt as floats."
+    #     )
+
+    # def is_valid_token(self, output: str, token: str) -> bool:
+    #     match = re.match(PARTIAL_NUMBER_REGEX, output + token)
+    #     return True if match is not None else False
+
+    # def is_valid_output(self, output: str) -> bool:
+    #     match = re.match(NUMBER_REGEX, output)
+    #     return True if match is not None else False
+
+    def finalize_output(self, output: str) -> str:
+        return str(float(output.strip('"')))

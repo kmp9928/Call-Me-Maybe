@@ -1,12 +1,15 @@
 import json
 from typing import Dict, Any
-from .errors import JSONExtractorError
+from .errors import JSONExtractorTypeError, JSONExtractorParsingError
 from .json_extractors import (
     JSONExtractor,
     PromptRulesProvider,
-    StringJSONExtractor,
     NumberJSONExtractor,
-    RegexJSONExtractor
+    IntegerJSONExtractor,
+    BooleanJSONExtractor,
+    StringJSONExtractor,
+    RegexJSONExtractor,
+    ReplacementJSONExtractor
 )
 from .llm import LLM
 from .models import Function, Parameter, Prompt
@@ -22,27 +25,35 @@ class ParametersExtractor:
     def extract(self, prompt: Prompt, function: Function) -> Dict[str, Any]:
         parameter_values: Dict[str, Any] = {}
 
-        for parameter in function.parameters:
-            debug("in parameter", parameter)
-            extractor = self.choose_extractor(parameter)
+        for param in function.parameters:
+            # debug("param", param)
+            extractor = self.choose_extractor(param)
             base_prompt = ParametersExtractor.make_parameters_prompt(
-                prompt.prompt, function, parameter, parameter_values, extractor
+                prompt.prompt, function, param, parameter_values, extractor
             )
-            parameter_values[parameter.name] = extractor.extract(base_prompt)
+            try:
+                parameter_values[param.name] = extractor.extract(base_prompt)
+                # debug("is", parameter_values[param.name])
+            except json.JSONDecodeError:
+                raise JSONExtractorParsingError(param.name)
 
         return parameter_values
 
     def choose_extractor(self, parameter: Parameter) -> JSONExtractor:
-        if parameter.type.type == "number":
+        if parameter.type == "number":
             return NumberJSONExtractor(self.llm)
-        elif parameter.type.type == "string":
+        elif parameter.type == "integer":
+            return IntegerJSONExtractor(self.llm)
+        elif parameter.type == "string":
             if parameter.name == "regex":
                 return RegexJSONExtractor(self.llm)
+            elif parameter.name == "replacement":
+                return ReplacementJSONExtractor(self.llm)
             return StringJSONExtractor(self.llm)
+        elif parameter.type == "boolean":
+            return BooleanJSONExtractor(self.llm)
         else:
-            raise JSONExtractorError(
-                f"Unsupported parameter type {parameter.type.type}"
-            )
+            raise JSONExtractorTypeError(parameter.type)
 
     @staticmethod
     def make_parameters_prompt(
@@ -53,14 +64,14 @@ class ParametersExtractor:
         rules_provider: PromptRulesProvider
     ) -> str:
         rules = rules_provider.get_rules()
-        rules = f"Rules: {rules}\n" if rules != "" else ""
+        rules = f"Rules: {rules}\n\n" if rules != "" else ""
 
         return (
             "System: Output matching this schema:\n" +
             ParametersExtractor.make_schema(function) +
             "\n" +
             rules +
-            f"User: {prompt}\n"
+            f"User Prompt: {prompt}\n"
             f"Output:\n" +
             ParametersExtractor.make_output(
                 function, current_parameter, parameter_values
@@ -70,7 +81,7 @@ class ParametersExtractor:
     @staticmethod
     def make_schema(function: Function) -> str:
         parameters_str = ("\n").join([
-            f"{json.dumps(p.name)}=<{p.type.type}>"
+            f"{json.dumps(p.name)}=<{p.type}>"
             for p in function.parameters
         ])
 

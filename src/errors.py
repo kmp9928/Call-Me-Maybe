@@ -23,3 +23,17 @@ class ModelValidationError(InputFileError):
 
 class JSONExtractorError(Exception):
     pass
+
+
+class JSONExtractorTypeError(JSONExtractorError):
+    def __init__(self, type: str):
+        super().__init__(
+            f"Wrong parameter type: {type}."
+        )
+
+
+class JSONExtractorParsingError(JSONExtractorError):
+    def __init__(self, param_name: str):
+        super().__init__(
+            f"Not possible to parse JSON outout for parameter: {param_name}."
+        )

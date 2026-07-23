@@ -24,7 +24,7 @@ class PromptPipeline:
         parameters: Dict[str, Any] = self.get_parameters(prompt, function)
 
         return PromptResponse(
-            prompt=prompt.prompt, name=function.name, parameters=parameters
+            prompt=prompt.prompt, function=function, parameters=parameters
         )
 
     def get_function(self, prompt: Prompt) -> Function:

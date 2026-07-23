@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Any
 from enum import Enum
 import re
 import json
-from .arguments_parser import Function
+from .input_reader import Function
 from .prompt_state import PromptState
 from .llm import LLM
 import math

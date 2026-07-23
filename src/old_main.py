@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from .arguments_parser import PromptsParser, FunctionsParser
+from .input_reader import PromptsParser, FunctionsParser
 from .errors import InputFileError
 from .pipeline import GenerationPipeline
 

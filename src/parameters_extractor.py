@@ -1,6 +1,7 @@
 import copy
 import json
-from dataclasses import dataclass
+import re
+from enum import Enum
 from typing import Dict, Any
 from .errors import JSONExtractorTypeError, JSONExtractorParsingError
 from .json_extractors import (
@@ -72,6 +73,8 @@ class ParametersExtractor:
     ) -> str:
         rules = rules_provider.get_rules()
         rules = f"Rules: {rules}\n\n" if rules != "" else ""
+        if current_parameter.name == "replacement":
+            prompt = ParametersExtractor.simplify_prompt(prompt)
 
         return (
             "System: Output matching this schema:\n" +
@@ -95,16 +98,6 @@ class ParametersExtractor:
 
         return f"{json.dumps(schema)}"
 
-        # parameters_str = ("\n").join([
-        #     f"{json.dumps(p.name)}=<{p.type}>"
-        #     for p in function.parameters
-        # ])
-
-        # return (
-        #     f'"function_name"={json.dumps(function.name)}\n' +
-        #     f"{parameters_str}\n"
-        # )
-
     @staticmethod
     def make_output(
         function: Function,
@@ -119,14 +112,13 @@ class ParametersExtractor:
             "parameters": values
         }).removesuffix("null}}")
 
-        # # output = f'"function_name"={json.dumps(function.name)}\n'
-        # for k, v in parameter_values.items():
-        #     output += f"{json.dumps(k)}={json.dumps(v)}\n"
-
-        # return output + f"{json.dumps(current_parameter.name)}="
-
     @staticmethod
     def format_parameter_placeholder(parameter: Parameter) -> str:
-        # if parameter.type == "string":
-            # return "<string>|'<char>'"
         return f"<{parameter.type}>"
+
+    @staticmethod
+    def simplify_prompt(prompt: str) -> str:
+        #changes '' for [] to make the prompt easier to find symbols like "
+        pattern = r"(?<!\w)'(.*?)\'(?!\w)"
+
+        return re.sub(pattern, r'[\1]', prompt)

@@ -1,7 +1,7 @@
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import List, Any, Protocol
+from typing import List, Dict, Any, Protocol
 from .errors import JSONExtractorTimeoutError
 from .llm import LLM
 from .debug import debug
@@ -12,12 +12,8 @@ PARTIAL_STR_REGEX = re.compile(
     r'^"(([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{0,4})+"?)?\Z'
 )
 STR_REGEX = re.compile(r'^"([^"\\\n\t\r]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})+"\Z')
-
-PARTIAL_INTEGER_REGEX = re.compile(r'^-?[0-9]+\Z')
-INTEGER_REGEX = re.compile(r'^-?[0-9]+\Z')
 PARTIAL_NUMBER_REGEX = re.compile(r'^"-?\d+\.?\d{0,6}"?\Z')
 NUMBER_REGEX = re.compile(r'^"-?\d+\.?\d{0,6}"\Z')
-
 PARTIAL_REGEX = re.compile(
     r'^"('
     r'\[(B(\])?)?[^\]]*(\[B\]?)?|'
@@ -29,12 +25,29 @@ REGEX = re.compile(
     r'^"(\[B\][^\]]+\[B\]|\[0-9\]\+|\[[aeiouAEIOU]+\])"\Z'
 )
 PARTIAL_REPLACEMENT_REGEX = re.compile(
-    r'^"([a-zA-Z0-9_-]+|\\["\\]|[^"\\a-zA-Z0-9_\s-])"?\Z'
+    r'^"([a-zA-Z0-9_]+|\\["\\]|([^"\\a-zA-Z0-9_\s])\2{0,6})"?\Z'
 )
 REPLACEMENT_REGEX = re.compile(
-    r'^"([a-zA-Z0-9_-]+|\\["\\]|[^"\\a-zA-Z0-9_\s-])"\Z'
+    r'^"([a-zA-Z0-9_]+|\\["\\]|([^"\\a-zA-Z0-9_\s])\2{0,6})"\Z'
 )
 UNIX_PATH_REGEX = re.compile(r'/([^/ ]+/)*[^/ ]+')
+HIGH_RISK_SYMBOL_MAP: Dict[str, str] = {
+    "hyphen": "-",
+    "hyphens": "-",
+    "Pound": "#",
+    "pounds": "#",
+    "percent": "%",
+    "at": "@",
+    "ats": "@",
+    "colons": ":",
+    "semicolon": ";",
+    "backslash": "\\",
+    "pipe": "|",
+    "equals": "=",
+    "underscore": "_",
+    "questionmark": "?",
+    "questionmarks": "?"
+}
 
 
 class PromptRulesProvider(Protocol):
@@ -144,6 +157,12 @@ class StringJSONExtractor(JSONExtractor):
         match = re.match(STR_REGEX, output)
         return True if match is not None else False
 
+    def finalize_output(self, output: str) -> Any:
+        final_str = json.loads(output)
+        assert isinstance(final_str, str)
+
+        return final_str.strip()
+
 
 class PathJSONExtractor(StringJSONExtractor):
     def get_output_prefix(self, user_prompt: str) -> str:
@@ -158,7 +177,10 @@ class PathJSONExtractor(StringJSONExtractor):
 
 class ReplacementJSONExtractor(StringJSONExtractor):
     def get_rules(self) -> str:
-        return "If asked for a non-word character. (e.g. asterisks), output EXACTLY ONE character (e.g. '*')."
+        return (
+            "For a non-word symbol, output one character. " +
+            "asterisks → '*'."
+        )
 
     def is_valid_token(
         self, output: str, token: str, user_prompt: str
@@ -171,10 +193,14 @@ class ReplacementJSONExtractor(StringJSONExtractor):
         return True if match is not None else False
 
     def finalize_output(self, output: str) -> Any:
-        value = json.loads(output)
+        value = super().finalize_output(output)
         assert isinstance(value, str)
+
         if len(value) > 1 and len(set(value)) == 1:
             return value[0]
+
+        if value in HIGH_RISK_SYMBOL_MAP.keys():
+            return HIGH_RISK_SYMBOL_MAP[value]
 
         return value
 

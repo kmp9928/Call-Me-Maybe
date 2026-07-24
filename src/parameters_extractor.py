@@ -1,7 +1,6 @@
 import copy
 import json
 import re
-from enum import Enum
 from typing import Dict, Any
 from .errors import JSONExtractorTypeError, JSONExtractorParsingError
 from .json_extractors import (
@@ -118,7 +117,7 @@ class ParametersExtractor:
 
     @staticmethod
     def simplify_prompt(prompt: str) -> str:
-        #changes '' for [] to make the prompt easier to find symbols like "
+        # changes '' for [] to make the prompt easier to find symbols like "
         pattern = r"(?<!\w)'(.*?)\'(?!\w)"
 
         return re.sub(pattern, r'[\1]', prompt)

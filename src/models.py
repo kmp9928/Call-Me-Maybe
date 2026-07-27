@@ -4,10 +4,24 @@ from pydantic_core import PydanticCustomError
 
 
 class Prompt(BaseModel):
+    """Pydantic model representing a user input prompt.
+
+    Attributes:
+        prompt (str): Raw prompt text.
+    """
+
     prompt: str
 
     @model_validator(mode='after')
     def check_empty_prompt(self) -> Self:
+        """Validates that the prompt string is not empty.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If prompt string is empty.
+        """
         if self.prompt == "":
             raise ValidationError.from_exception_data(
                 title="Prompt",
@@ -26,10 +40,24 @@ class Prompt(BaseModel):
 
 
 class Returns(BaseModel):
+    """Pydantic model representing return type specifications.
+
+    Attributes:
+        type (str): Return type name.
+    """
+
     type: str
 
     @model_validator(mode='after')
     def check_wrong_type(self) -> Self:
+        """Validates that return type is an allowed primitive type.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If return type is invalid.
+        """
         if self.type not in ["number", "integer", "string", "boolean"]:
             raise ValidationError.from_exception_data(
                 title="Returns",
@@ -48,11 +76,26 @@ class Returns(BaseModel):
 
 
 class Parameter(BaseModel):
+    """Pydantic model representing a function parameter schema.
+
+    Attributes:
+        name (str): Parameter identifier.
+        type (str): Primitive parameter type name.
+    """
+
     name: str
     type: str
 
     @model_validator(mode='after')
     def check_empty_param_name(self) -> Self:
+        """Validates that the parameter name is not empty.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If parameter name is empty.
+        """
         if self.name == "":
             raise ValidationError.from_exception_data(
                 title="Name",
@@ -71,6 +114,14 @@ class Parameter(BaseModel):
 
     @model_validator(mode='after')
     def check_wrong_type(self) -> Self:
+        """Validates that parameter type is supported.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If parameter type is invalid.
+        """
         if self.type not in ["number", "integer", "string", "boolean"]:
             raise ValidationError.from_exception_data(
                 title="Type",
@@ -89,6 +140,15 @@ class Parameter(BaseModel):
 
 
 class Function(BaseModel):
+    """Pydantic model representing a supported function definition.
+
+    Attributes:
+        name (str): Function name.
+        description (str): Functional purpose description.
+        parameters (List[Parameter]): Parameter specifications list.
+        returns (Returns): Expected return type container.
+    """
+
     name: str
     description: str
     parameters: List[Parameter]
@@ -96,6 +156,14 @@ class Function(BaseModel):
 
     @model_validator(mode='after')
     def check_empty_func_name(self) -> Self:
+        """Validates that the function name is not empty.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If function name is empty.
+        """
         if self.name == "":
             raise ValidationError.from_exception_data(
                 title="Name",
@@ -114,6 +182,14 @@ class Function(BaseModel):
 
     @model_validator(mode='after')
     def check_empty_func_desc(self) -> Self:
+        """Validates that the function description is not empty.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If description string is empty.
+        """
         if self.description == "":
             raise ValidationError.from_exception_data(
                 title="Description",
@@ -132,12 +208,28 @@ class Function(BaseModel):
 
 
 class PromptResponse(BaseModel):
+    """Pydantic model representing the extraction output response.
+
+    Attributes:
+        prompt (str): Original input prompt string.
+        function (Function): Selected target function.
+        parameters (Dict[str, Any]): Extracted key-value parameters.
+    """
+
     prompt: str
     function: Function
     parameters: Dict[str, Any]
 
     @model_validator(mode='after')
     def check_parameters(self) -> Self:
+        """Validates that extracted parameter keys match function schema.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If extracted parameters deviate from schema.
+        """
         original_parameters = [p.name for p in self.function.parameters]
         output_parameters = [p for p in self.parameters.keys()]
         if original_parameters != output_parameters:

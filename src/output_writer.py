@@ -5,8 +5,17 @@ from .models import PromptResponse
 
 
 class OutputWriter:
+    """Handles writing processed prompt responses to disk in JSON format."""
+
     @staticmethod
     def write_output(file_name: str, responses: List[PromptResponse]) -> None:
+        """Writes prompt response objects to a JSON file.
+
+        Args:
+            file_name (str): Destination file path for the output.
+            responses (List[PromptResponse]): List of response objects
+                to serialize.
+        """
         OutputWriter.check_directory(file_name)
 
         try:
@@ -29,6 +38,11 @@ class OutputWriter:
 
     @staticmethod
     def check_directory(file_name: str) -> None:
+        """Ensures the target directory exists, creating it if needed.
+
+        Args:
+            file_name (str): Target output file path.
+        """
         directory = os.path.dirname(file_name)
 
         if not os.path.exists(directory):

@@ -1,6 +1,10 @@
 import sys
 from typing import List
-from .errors import InputFileError
+from .errors import (
+    CommandLineArgumentsError,
+    InputFileError,
+    JSONExtractorError
+)
 from .input_reader import InputReader
 from .function_name_extractor import FunctionNameExtractor
 from .llm import LLM
@@ -8,7 +12,6 @@ from .models import PromptResponse
 from .output_writer import OutputWriter
 from .parameters_extractor import ParametersExtractor
 from .prompt_pipeline import PromptPipeline
-from .debug import debug
 
 
 if __name__ == "__main__":
@@ -27,13 +30,13 @@ if __name__ == "__main__":
         responses: List[PromptResponse] = []
         for prompt in prompts:
             response = pipeline.process_prompt(prompt)
-            debug("output", response)
+            # debug("output", response)
             # break
             responses.append(response)
 
         OutputWriter().write_output(args.get_output_file(), responses)
-    except SystemExit as e:
-        print(f"Error: Missing required argument '--{str(e).split("--")[1]}'")
-        sys.exit(1)  # Not strictly needed, but without it the program would continue executing after the except block
-    except InputFileError as e:
+    except CommandLineArgumentsError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except (InputFileError, JSONExtractorError) as e:
         print(f"Error: {e}")

@@ -23,7 +23,6 @@ help:
 
 install:
 	@uv sync
-	@uv pip install -e ./llm_sdk
 	@echo "Dependencies installed"
 
 
@@ -43,9 +42,10 @@ lint:
 		--warn-unused-ignores \
 		--ignore-missing-imports \
 		--disallow-untyped-defs \
+		--no-namespace-packages \
 		--check-untyped-defs $(INCLUDE_FILES)
 
 
 clean:
-	@rm -rf __pycache__ ./src/.mypy_cache ./src/__pycache__
+	@rm -rf __pycache__ .mypy_cache src/.mypy_cache src/__pycache__
 	@echo "Cleaned build artifacts and cache files"

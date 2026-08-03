@@ -72,7 +72,7 @@ class InputReader(argparse.ArgumentParser):
         """
         return InputReader.get_full_path(self.args.output, "output")
 
-    def error(self, message) -> Never:
+    def error(self, message: str) -> Never:
         """Overrides ArgumentParser error handler to raise a custom exception.
 
         Args:

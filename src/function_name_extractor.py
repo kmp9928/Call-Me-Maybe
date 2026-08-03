@@ -41,9 +41,11 @@ class FunctionNameExtractor:
             functions
         )
 
-        return LiteralJSONExtractor(self.llm, allowed_functions).extract(
+        name: str = LiteralJSONExtractor(self.llm, allowed_functions).extract(
             base_prompt, prompt.prompt
         )
+
+        return name
 
     @staticmethod
     def make_function_prompt(prompt: str, functions: List[Function]) -> str:

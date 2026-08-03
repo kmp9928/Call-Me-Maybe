@@ -24,7 +24,8 @@ class LLM:
         Returns:
             List[int]: List of generated token IDs.
         """
-        return (self.llm.encode(prompt)).tolist()[0]
+        result: List[int] = (self.llm.encode(prompt)).tolist()[0]
+        return result
 
     def decode(self, id: int) -> str:
         """Decodes a single token ID back into its string representation.
@@ -35,7 +36,8 @@ class LLM:
         Returns:
             str: Decoded text string.
         """
-        return self.llm.decode([id])
+        result: str = self.llm.decode([id])
+        return result
 
     def get_logits(self, input_ids: List[int]) -> List[float]:
         """Computes output logits for a sequence of token IDs.
@@ -46,4 +48,5 @@ class LLM:
         Returns:
             List[float]: Output logits produced by the model.
         """
-        return self.llm.get_logits_from_input_ids(input_ids)
+        result: List[float] = self.llm.get_logits_from_input_ids(input_ids)
+        return result

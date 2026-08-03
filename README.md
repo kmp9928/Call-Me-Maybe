@@ -50,7 +50,7 @@ make lint          # flake8 + mypy
 
 - Do root-cause analysis of specific extraction bugs.
 - Discuss and pressure-test candidate fixes before they were implemented.
-- Draft this README's technical sections from the actual codebase and the debugging session above.
+- Draft this README's technical sections from the actual codebase.
 
 ## Algorithm Explanation
 

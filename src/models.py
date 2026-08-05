@@ -154,6 +154,24 @@ class Function(BaseModel):
     parameters: List[Parameter]
     returns: Returns
 
+    @model_validator(mode='before')
+    @classmethod
+    def reshape_parameters(cls, data: Any) -> Any:
+        """Reshapes the JSON's {name: {type: ...}} parameter.
+
+        Returns:
+            data: List `Parameter` expected or None if input had wrong type.
+        """
+        if isinstance(data, dict) and isinstance(data.get("parameters"), dict):
+            data = {
+                **data,
+                "parameters": [
+                    {"name": name, **p} if isinstance(p, dict) else p
+                    for name, p in data["parameters"].items()
+                ],
+            }
+        return data
+
     @model_validator(mode='after')
     def check_empty_func_name(self) -> Self:
         """Validates that the function name is not empty.
@@ -201,6 +219,32 @@ class Function(BaseModel):
                     "loc": ("description",),
                     "input": {
                         "description": self.description
+                    }
+                }]
+            )
+        return self
+
+    @model_validator(mode='after')
+    def check_empty_parameters(self) -> Self:
+        """Validates that the list of parameters is not empty.
+
+        Returns:
+            Self: Validated model instance.
+
+        Raises:
+            ValidationError: If parameters list is empty.
+        """
+        if len(self.parameters) == 0:
+            raise ValidationError.from_exception_data(
+                title="Parameters",
+                line_errors=[{
+                    "type": PydanticCustomError(
+                        "check_empty_parameters",
+                        "Parameters list is empty"
+                    ),
+                    "loc": ("parameters",),
+                    "input": {
+                        "parameters": self.parameters
                     }
                 }]
             )

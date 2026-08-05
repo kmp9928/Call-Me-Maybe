@@ -8,7 +8,7 @@ class CommandLineArgumentsError(Exception):
             message (str): Argument error details containing the missing flag.
         """
         super().__init__(
-            f"Missing required argument '--{str(message).split("--")[1]}'."
+            f"Invalid command-line argument: {message}."
         )
 
 

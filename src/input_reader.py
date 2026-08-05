@@ -9,7 +9,7 @@ from .errors import (
     InputFileFormatError,
     ModelValidationError
 )
-from .models import Prompt, Function, Parameter
+from .models import Prompt, Function
 
 
 class InputReader(argparse.ArgumentParser):
@@ -27,11 +27,14 @@ class InputReader(argparse.ArgumentParser):
     args: argparse.Namespace
 
     def __init__(self) -> None:
-        """Initializes the InputReader and parses required arguments."""
+        """Initializes the InputReader and parses command-line arguments."""
         super().__init__()
-        self.add_argument("--functions_definition", required=True)
-        self.add_argument("--input", required=True)
-        self.add_argument("--output", required=True)
+        self.add_argument(
+            "--functions_definition",
+            default="functions_definition.json"
+        )
+        self.add_argument("--input", default="function_calling_tests.json")
+        self.add_argument("--output", default="function_calls.json")
         self.args = self.parse_args()
 
     def get_functions(self) -> List[Function]:
@@ -123,6 +126,9 @@ class InputReader(argparse.ArgumentParser):
             with open(file_name, "r") as file:
                 data = json.load(file)
 
+            if not isinstance(data, list) or len(data) == 0:
+                raise InputFileFormatError("Expected non-empty JSON array", 1)
+
             for prompt in data:
                 prompts.append(Prompt.model_validate(prompt))
 
@@ -155,19 +161,11 @@ class InputReader(argparse.ArgumentParser):
             with open(file_name, "r") as file:
                 data = json.load(file)
 
+            if not isinstance(data, list) or len(data) == 0:
+                raise InputFileFormatError("Expected non-empty JSON array", 1)
+
             for function in data:
-                functions.append(Function(
-                    name=function["name"],
-                    description=function["description"],
-                    parameters=[
-                        Parameter(
-                            name=name,
-                            type=param_type["type"]
-                        )
-                        for name, param_type in function["parameters"].items()
-                    ],
-                    returns=function["returns"]
-                ))
+                functions.append(Function.model_validate(function))
 
             return functions
         except FileNotFoundError:

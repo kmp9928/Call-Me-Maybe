@@ -28,7 +28,8 @@ if __name__ == "__main__":
         )
 
         responses: List[PromptResponse] = []
-        for prompt in prompts:
+        for n, prompt in enumerate(prompts, start=1):
+            print(f"Processing prompt {n}/{len(prompts)}")
             response = pipeline.process_prompt(prompt)
             # debug("output", response)
             # break

@@ -53,7 +53,6 @@ class ParametersExtractor:
 
         remaining_prompt = prompt.prompt
         for param in function.parameters:
-            # debug("param", param)
             extractor = self.choose_extractor(param)
             base_prompt = ParametersExtractor.make_parameters_prompt(
                 prompt.prompt, function, param, parameter_values, extractor
@@ -62,7 +61,6 @@ class ParametersExtractor:
                 parameter_values[param.name] = extractor.extract(
                     base_prompt, remaining_prompt
                 )
-                # debug("is", parameter_values[param.name])
                 if param.type == "number" or param.type == "integer":
                     remaining_prompt = ParametersExtractor.update_prompt(
                         remaining_prompt, parameter_values[param.name]

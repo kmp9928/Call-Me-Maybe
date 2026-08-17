@@ -31,8 +31,6 @@ if __name__ == "__main__":
         for n, prompt in enumerate(prompts, start=1):
             print(f"Processing prompt {n}/{len(prompts)}")
             response = pipeline.process_prompt(prompt)
-            # debug("output", response)
-            # break
             responses.append(response)
 
         OutputWriter().write_output(args.get_output_file(), responses)

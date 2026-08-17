@@ -102,7 +102,6 @@ class JSONExtractor(ABC):
         output = self.get_output_prefix(user_prompt)
 
         while not self.is_valid_output(output):
-            # debug("base_prompt + output", base_prompt + output)
             if len(base_prompt + output) >= len(base_prompt) + 150:
                 raise JSONExtractorTimeoutError(output)
 
@@ -110,7 +109,6 @@ class JSONExtractor(ABC):
             logits = self.llm.get_logits(input_ids)
             for id in range(len(logits)):
                 token: str = self.llm.decode(id)
-                # debug("user_prompt is", user_prompt)
                 if len(token) == 0 or not self.is_valid_token(
                     output, token, user_prompt
                 ):
@@ -120,7 +118,6 @@ class JSONExtractor(ABC):
                 raise JSONExtractorMissingParamError(user_prompt)
             best_id = max(logits)
             output += self.llm.decode(logits.index(best_id))
-            # debug("output so far", output)
 
         return self.finalize_output(output)
 
